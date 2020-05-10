@@ -1,0 +1,124 @@
+<script runat="server">
+Platform.Load("Core", "1");
+var url = 'https://YOUR-AUTH-ENDPOINT.com/v2/token';
+var contentType = 'application/json';
+var authPayload = {
+    "grant_type": "client_credentials",
+    "client_id": "your client id",
+    "client_secret": "your client secret",
+    "account_id": "your mid"
+};
+authPayload = Platform.Function.Stringify(request);
+var result = HTTP.Post(url, contentType, authPayload);
+var aRes = Platform.Function.ParseJSON(result.Response.toString());
+var auth = aRes.access_token;
+var assetURL = 'https://YOUR-REST-ENDPOINT.com/asset/v1/content/assets/query';
+var contentType = 'application/json';
+var contentPayload = {
+    "query": {
+        "property": "assetType.id",
+        "simpleOperator": "equals",
+        "valueType": "int",
+        "value": 197
+    },
+    "page": {
+        "pageSize": 1000
+    }
+};
+contentPayload = Platform.Function.Stringify(contentPayload);
+var headerNames = ["Authorization"];
+var headerValues = ["Bearer " + auth];
+var req = HTTP.Post(assetURL, contentType, contentPayload, headerNames, headerValues);
+var res = req.Response.toString();
+var json = Platform.Function.ParseJSON(res);
+var items = json.items;
+for (var i = 0; i < items.length; ++i) {
+    var itr = items[i];
+    var contentName = itr["name"];
+    var content = itr["content"];
+    var contentID = itr["id"];
+    var custKey = itr["customerKey"];
+    var catID = itr["category"]["id"];
+    Platform.Function.UpsertData("Content Reference Directory Lookup", ["contentID"], [contentID], ["name", "content", "catID", "custKey"], [contentName, content, catID, custKey]);
+}
+</script>
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+<meta charset="UTF-8">
+<title>Content Reference Directory</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-beta.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="../main.css">
+</head>
+<body>
+<header>
+  <h4 class="text-center">SFMC Content Reference Directory</h4>
+</header>
+<div id="app">
+  <div class="container">
+    <div class="col-sm-12">
+      <p>
+        Start Typing The Content Name To Filter Blocks:
+      </p>
+      <input type="text" v-model="filterValue" placeholder="Content Block Name">
+    </div>
+  </div>
+  <div class="container">
+    <div v-for="n in filteredAndSortedData" class="col-sm-12">
+      <div class="col-sm-12">
+        <div class="col-xs-3 left" >
+          <div class="padding">
+            <h6 class="reference_title"> {{n.name}}</h6>
+            <p>ID: {{n.contentID}}</p>
+            <textarea readonly onfocus="this.select();" onmouseup="return false;">{{n.content}}</textarea>
+          </div>
+        </div>
+        <div class="col-xs-9 right">
+          <div class="content_render" v-html="n.content">{{n.content}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/vue/2.3.4/vue.min.js'></script>
+<script src='https://code.jquery.com/jquery-3.3.1.min.js'></script>
+<script>
+new Vue({
+  el: "#app",
+  data: {
+    Data: [],
+    filterValue: "",
+    sortAsc: true,
+  },
+  mounted: function () {
+    var self = this;
+    // Get Code Resource To Retrieve Content Block Data
+    $.ajax({
+      url: "YOUR-JSON-CODE-RESOURCE-URL",
+      method: "GET",
+      success: function (data) {
+        self.Data = data;
+      },
+      error: function (error) {
+        console.log(error);
+      },
+    });
+  },
+  computed: {
+    filteredAndSortedData() {
+      // Apply Filter From User Input
+      let result = this.Data;
+      if (this.filterValue) {
+        result = result.filter((item) =>
+          item.name.toLowerCase().includes(this.filterValue.toLowerCase())
+        );
+      }
+      // Sort The Filtered Response
+      let ascDesc = this.sortAsc ? 1 : -1;
+      return result.sort((a, b) => ascDesc * a.name.localeCompare(b.name));
+    },
+  },
+});
+</script>
+</body>
+</html>
